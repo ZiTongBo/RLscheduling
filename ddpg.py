@@ -4,13 +4,10 @@
 
 # author：Elan time:2020/1/9
 
-'''
-DDPG
-'''
 
 import math
 import random
-
+from config import *
 import numpy as np
 
 import torch
@@ -27,19 +24,11 @@ from IPython.display import display
 
 import argparse
 
-GPU = True
-device_idx = 0
 if GPU:
     device = torch.device("cuda:" + str(device_idx) if torch.cuda.is_available() else "cpu")
 else:
     device = torch.device("cpu")
-print(device)
-
-parser = argparse.ArgumentParser(description='Train or test neural net motor controller.')
-parser.add_argument('--train', dest='train', action='store_true', default=False)
-parser.add_argument('--test', dest='test', action='store_true', default=False)
-
-args = parser.parse_args()
+torch.autograd.set_detect_anomaly(True)
 
 
 class ReplayBuffer:
@@ -86,8 +75,7 @@ class ActorNetwork(nn.Module):
         activation = F.relu
         x = activation(self.linear1(state))
         x = activation(self.linear2(x))
-        # x = F.tanh(self.linear3(x)).clone() # need clone to prevent in-place operation (which cause gradients not be drived)
-        x = self.linear3(x)  # for simplicity, no restriction on action range
+        x = torch.sigmoid(self.linear3(x)).clone()  # for simplicity, no restriction on action range
 
         return x
 
@@ -96,16 +84,16 @@ class ActorNetwork(nn.Module):
         select action for sampling, no gradients flow, noisy action, return .cpu
         '''
         state = torch.FloatTensor(state).unsqueeze(0).to(device)  # state dim: (N, dim of state)
-        normal = Normal(0, 1)
+        normal = Normal(0.5, 0.4)
         action = self.forward(state)
         noise = noise_scale * normal.sample(action.shape).to(device)
         action += noise
+        action = torch.from_numpy(np.clip(action.detach().numpy(), 0.01, 1))
         return action.detach().cpu().numpy()[0]
 
     def sample_action(self, action_range=1.):
-        normal = Normal(0, 1)
-        random_action = action_range * normal.sample((self.action_dim,))
-
+        normal = Normal(0.5, 0.4)
+        random_action = torch.from_numpy(np.clip(normal.sample((1,)).numpy(), 0.01, 1))
         return random_action.cpu().numpy()
 
     def evaluate_action(self, state, noise_scale=0.0):
@@ -174,7 +162,6 @@ class DDPG():
         self.update_cnt += 1
         state, action, reward, next_state, done = self.replay_buffer.sample(batch_size)
         # print('sample:', state, action,  reward, done)
-
         state = torch.FloatTensor(state).to(device)
         next_state = torch.FloatTensor(next_state).to(device)
         action = torch.FloatTensor(action).to(device)
@@ -185,7 +172,7 @@ class DDPG():
         new_next_action = self.target_policy_net.evaluate_action(next_state)  # for q
         new_action = self.policy_net.evaluate_action(state)  # for policy
         predict_new_q = self.q_net(state, new_action)  # for policy
-        target_q = reward + (1 - done) * gamma * self.target_qnet(next_state, new_next_action)  # for q
+        target_q = reward + (torch.FloatTensor(1) - done) * gamma * self.target_qnet(next_state, new_next_action)  # for q
         # reward = reward_scale * (reward - reward.mean(dim=0)) /reward.std(dim=0) # normalize with batch mean and std
 
         # train qnet
@@ -224,111 +211,28 @@ class DDPG():
 def plot(rewards):
     plt.figure(figsize=(20, 5))
     plt.plot(rewards)
-    plt.savefig('ddpg.png')
+    plt.savefig('plot/ddpg.png')
     # plt.show()
     plt.clf()
 
 
-class NormalizedActions(gym.ActionWrapper):  # gym env wrapper
+def _reverse_action(action):
+    low = 0
+    high = 1
+
+    action = 2 * (action - low) / (high - low) - 1
+    action = np.clip(action, low, high)
+
+    return action
+
+
+class NormalizedActions():  # gym env wrapper
     def _action(self, action):
-        low = self.action_space.low
-        high = self.action_space.high
+        low = 0
+        high = 1
 
         action = low + (action + 1.0) * 0.5 * (high - low)
         action = np.clip(action, low, high)
 
         return action
 
-    def _reverse_action(self, action):
-        low = self.action_space.low
-        high = self.action_space.high
-
-        action = 2 * (action - low) / (high - low) - 1
-        action = np.clip(action, low, high)
-
-        return action
-
-
-if __name__ == '__main__':
-    NUM_JOINTS = 2
-    LINK_LENGTH = [200, 140]
-    INI_JOING_ANGLES = [0.1, 0.1]
-    SCREEN_SIZE = 1000
-    # SPARSE_REWARD=False
-    # SCREEN_SHOT=False
-    hidden_dim = 512
-    explore_steps = 0  # for random exploration
-    batch_size = 64
-
-    replay_buffer_size = 1e6
-    replay_buffer = ReplayBuffer(replay_buffer_size)
-    model_path = './model'
-    torch.autograd.set_detect_anomaly(True)
-    alg = DDPG(replay_buffer, state_dim, action_dim, hidden_dim)
-
-    if args.train:
-        # alg.load_model(model_path)
-
-        # hyper-parameters
-        max_episodes = 1000
-        max_steps = 100
-        frame_idx = 0
-        rewards = []
-
-        for i_episode in range(max_episodes):
-            q_loss_list = []
-            policy_loss_list = []
-            state = env.reset()
-            episode_reward = 0
-
-            for step in range(max_steps):
-                if frame_idx > explore_steps:
-                    action = alg.policy_net.select_action(state)
-                else:
-                    action = alg.policy_net.sample_action(action_range=1.)
-                next_state, reward, done, _ = env.step(action)
-                if ENV != 'Reacher':
-                    env.render()
-                replay_buffer.push(state, action, reward, next_state, done)
-
-                state = next_state
-                episode_reward += reward
-                frame_idx += 1
-
-                if len(replay_buffer) > batch_size:
-                    q_loss, policy_loss = alg.update(batch_size)
-                    q_loss_list.append(q_loss)
-                    policy_loss_list.append(policy_loss)
-
-                if done:
-                    break
-            if i_episode % 20 == 0:
-                plot(rewards)
-                alg.save_model(model_path)
-            print('Eps: ', i_episode, '| Reward: ', episode_reward, '| Loss: ', np.average(q_loss_list),
-                  np.average(policy_loss_list))
-
-            rewards.append(episode_reward)
-
-    if args.test:
-        test_episodes = 10
-        max_steps = 100
-        alg.load_model(model_path)
-
-        for i_episode in range(test_episodes):
-            q_loss_list = []
-            policy_loss_list = []
-            state = env.reset()
-            episode_reward = 0
-
-            for step in range(max_steps):
-                action = alg.policy_net.select_action(state, noise_scale=0.0)  # no noise for testing
-                next_state, reward, done, _ = env.step(action)
-
-                state = next_state
-                episode_reward += reward
-
-                if done:
-                    break
-
-            print('Eps: ', i_episode, '| Reward: ', episode_reward)
