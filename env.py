@@ -17,12 +17,14 @@ class Env(object):
         self.meanDeadline = 0
         self.meanExecuteTime = 0
         self.minDeadline = 999
+        self.arrTask = 0
         self.minExecuteTime = 999
 
     def reset(self):
         self.time = 0
-        self.noProcessor = 2
-        self.noTask = 4
+        self.noProcessor = 3
+        self.noTask = 6
+        self.arrTask = 0
         self.meanDeadline = 0
         self.meanExecuteTime = 0
         self.minDeadline = 999
@@ -31,56 +33,78 @@ class Env(object):
         for i in range(self.noTask):
             task = Task()
             self.taskSet.append(task)
-        self.arrive()
         self.update()
 
     def step(self, actions):
-        reward = 0
+        reward = np.zeros(self.noTask)
+        global_reward = 0
+        done = np.zeros(self.noTask)
         exec_task = np.argsort(actions)[::-1]
+        info = np.zeros(2)
         for i in range(self.noProcessor):
-            if self.taskSet[exec_task[i]].isArrive:
-                if self.taskSet[exec_task[i]].execute():
-                    reward += 1
-                    print("finish")
+            if self.taskSet[exec_task[i]].isArrive and actions[exec_task[i]]>0:
+                self.taskSet[exec_task[i]].execute()
+                if not self.taskSet[exec_task[i]].isArrive:
+                    reward[exec_task[i]] += 1
+                    info[0] += 1
+                    global_reward += 1
+                    self.taskSet[exec_task[i]].reDeadline -= 1
+                    self.arrTask -= 1
+                    done[exec_task[i]] = 1
         for i in range(self.noTask):
+            self.taskSet[i].time += 1
             if self.taskSet[i].isArrive:
-                self.taskSet[i].deadline -= 1
-                if self.taskSet[i].deadline == 0:
+                self.taskSet[i].reDeadline -= 1
+                if self.taskSet[i].reDeadline == 0:
                     self.taskSet[i].miss()
-                    reward -= 1
-                    print("miss")
+                    reward[i] -= 1
+                    global_reward -= 1
+                    self.arrTask -= 1
+                    done[i] = 1
+                    info[1] += 1
         self.time += 1
-        self.arrive()
         self.update()
-        return reward, self.done()
+        return reward + global_reward, done, info
 
     def update(self):
         total_deadline = 0
         total_execute_time = 0
+        self.minDeadline = 999
+        self.minExecuteTime = 999
+        if self.arrTask == 0:
+            self.meanDeadline = 0
+            self.meanExecuteTime = 0
+            self.minDeadline = 0
+            self.minExecuteTime = 0
+            return
         for i in range(self.noTask):
             task = self.taskSet[i]
-            total_deadline += task.deadline
-            total_execute_time += task.executeTime
-            if task.deadline < self.minDeadline:
-                self.minDeadline = task.deadline
-            if task.executeTime < self.minExecuteTime:
-                self.minExecuteTime = task.executeTime
-        self.meanDeadline = total_deadline / self.noTask
-        self.meanExecuteTime = total_execute_time / self.noTask
+            if task.isArrive:
+                total_deadline += task.reDeadline
+                total_execute_time += task.reExecuteTime
+                if task.reDeadline < self.minDeadline:
+                    self.minDeadline = task.reDeadline
+                if task.reExecuteTime < self.minExecuteTime:
+                    self.minExecuteTime = task.reExecuteTime
+        self.meanDeadline = total_deadline / self.arrTask
+        self.meanExecuteTime = total_execute_time / self.arrTask
 
     def arrive(self):
         for task in self.taskSet:
-            if not task.isArrive and self.time % task.period == 0:
+            if not task.isArrive and task.time % task.period == 0 and task.count > 0:
                 task.arrive()
-        pass
+                self.arrTask += 1
+        self.update()
 
     def done(self):
+        if self.arrTask > 0:
+            return False
         for i in range(self.noTask):
             if self.taskSet[i].count > 0:
                 return False
         return True
 
     def observation(self, task):
-        return np.array([task.executeTime, task.deadline, task.period,
-                         self.noTask, self.meanDeadline, self.minDeadline, self.meanExecuteTime, self.minExecuteTime])
+        return np.array([task.reExecuteTime, task.reDeadline, task.period,
+                         self.arrTask, self.meanExecuteTime, self.minExecuteTime , self.meanDeadline, self.minDeadline])
 

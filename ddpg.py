@@ -72,28 +72,29 @@ class ActorNetwork(nn.Module):
         self.linear3.bias.data.uniform_(-init_w, init_w)
 
     def forward(self, state):
-        activation = F.relu
+        activation = torch.relu
         x = activation(self.linear1(state))
         x = activation(self.linear2(x))
-        x = torch.sigmoid(self.linear3(x)).clone()  # for simplicity, no restriction on action range
-
+        x = torch.sigmoid(self.linear3(x)).clone()  # for simplicity, no restriction on action rang
         return x
 
-    def select_action(self, state, noise_scale=1.0):
+    def select_action(self, state, noise, noise_scale=0.5):
         '''
         select action for sampling, no gradients flow, noisy action, return .cpu
         '''
         state = torch.FloatTensor(state).unsqueeze(0).to(device)  # state dim: (N, dim of state)
-        normal = Normal(0.5, 0.4)
+        normal = Normal(0, noise)
+        # print(state)
         action = self.forward(state)
+        # print(action)
         noise = noise_scale * normal.sample(action.shape).to(device)
         action += noise
-        action = torch.from_numpy(np.clip(action.detach().numpy(), 0.01, 1))
-        return action.detach().cpu().numpy()[0]
+        action = torch.from_numpy(np.clip(action.detach().numpy(), 0, 1)[0])
+        return action.detach().cpu().numpy()
 
     def sample_action(self, action_range=1.):
         normal = Normal(0.5, 0.4)
-        random_action = torch.from_numpy(np.clip(normal.sample((1,)).numpy(), 0.01, 1))
+        random_action = torch.from_numpy(np.clip(normal.sample((1,)).numpy(), 0.001, 1))
         return random_action.cpu().numpy()
 
     def evaluate_action(self, state, noise_scale=0.0):
@@ -141,8 +142,8 @@ class DDPG():
         for target_param, param in zip(self.target_qnet.parameters(), self.q_net.parameters()):
             target_param.data.copy_(param.data)
         self.q_criterion = nn.MSELoss()
-        q_lr = 8e-4
-        policy_lr = 8e-4
+        q_lr = 1e-4
+        policy_lr = 1e-5
         self.update_cnt = 0
 
         self.q_optimizer = optim.Adam(self.q_net.parameters(), lr=q_lr)
@@ -172,7 +173,7 @@ class DDPG():
         new_next_action = self.target_policy_net.evaluate_action(next_state)  # for q
         new_action = self.policy_net.evaluate_action(state)  # for policy
         predict_new_q = self.q_net(state, new_action)  # for policy
-        target_q = reward + (torch.FloatTensor(1) - done) * gamma * self.target_qnet(next_state, new_next_action)  # for q
+        target_q = reward + (1 - done) * gamma * self.target_qnet(next_state, new_next_action)  # for q
         # reward = reward_scale * (reward - reward.mean(dim=0)) /reward.std(dim=0) # normalize with batch mean and std
 
         # train qnet

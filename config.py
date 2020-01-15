@@ -17,10 +17,10 @@ MIN_EXECUTE_TIME = 3
 MAX_DEADLINE = 20
 MIN_DEADLINE = 10
 
-hidden_dim = 512
-explore_steps = 20  # for random exploration
-batch_size = 64
-replay_buffer_size = 1e6
+hidden_dim = 32
+explore_episodes = 1000  # for random exploration
+batch_size = 128
+replay_buffer_size = 1e4
 model_path = './model/'
-max_episodes = 1000
-max_steps = 1000
+max_episodes = 100000
+max_steps = 10000

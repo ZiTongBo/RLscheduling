@@ -16,7 +16,9 @@ actions = np.array([], dtype=dt)
 
 actions = np.append(actions,np.array([(str(0), 22)], dtype = dt))
 actions = np.append(actions,np.array([(str(1), 12)], dtype = dt))
-ac = [2,1,0]
+ac = np.array([2,1,0])
+print(ac+1)
+print(np.array(ac).reshape(-1,1))
 print(np.argsort(ac)[::-1])
 print ('我们的数组是：')
 print (actions)
