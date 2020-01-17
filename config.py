@@ -18,7 +18,7 @@ MAX_DEADLINE = 20
 MIN_DEADLINE = 10
 
 hidden_dim = 32
-explore_episodes = 1000  # for random exploration
+explore_episodes = 0  # for random exploration
 batch_size = 128
 replay_buffer_size = 1e4
 model_path = './model/'

@@ -89,12 +89,14 @@ class ActorNetwork(nn.Module):
         # print(action)
         noise = noise_scale * normal.sample(action.shape).to(device)
         action += noise
-        action = torch.from_numpy(np.clip(action.detach().numpy(), 0, 1)[0])
-        return action.detach().cpu().numpy()
+        # action = torch.from_numpy(np.clip(action.detach().numpy(), 0, 1)[0])
+        torch.clamp(action, 0, 1)
+        return action.detach().cpu().numpy()[0]
 
     def sample_action(self, action_range=1.):
         normal = Normal(0.5, 0.4)
-        random_action = torch.from_numpy(np.clip(normal.sample((1,)).numpy(), 0.001, 1))
+        #random_action = torch.from_numpy(np.clip(normal.sample((1,)).numpy(), 0.001, 1))
+        random_action = torch.clamp(normal.sample((1,)), 0.001, 1)
         return random_action.cpu().numpy()
 
     def evaluate_action(self, state, noise_scale=0.0):
@@ -123,7 +125,7 @@ class QNetwork(nn.Module):
     def forward(self, state, action):
         x = torch.cat([state, action], 1)  # the dim 0 is number of samples
         x = F.relu(self.linear1(x))
-        x = F.relu(self.linear2(x))
+        x = torch.tanh(self.linear2(x))
         x = self.linear3(x)
         return x
 
@@ -142,8 +144,8 @@ class DDPG():
         for target_param, param in zip(self.target_qnet.parameters(), self.q_net.parameters()):
             target_param.data.copy_(param.data)
         self.q_criterion = nn.MSELoss()
-        q_lr = 1e-4
-        policy_lr = 1e-5
+        q_lr = 5e-4
+        policy_lr = 1e-4
         self.update_cnt = 0
 
         self.q_optimizer = optim.Adam(self.q_net.parameters(), lr=q_lr)
@@ -209,10 +211,11 @@ class DDPG():
         self.policy_net.eval()
 
 
-def plot(rewards):
+def plot(rewards, edf_rewards):
     plt.figure(figsize=(20, 5))
-    plt.plot(rewards)
-    plt.savefig('plot/ddpg.png')
+    plt.plot(range(len(rewards)), rewards, color='green', label='DDPG')
+    plt.plot(range(len(edf_rewards)), edf_rewards, color='red', label='EDF')
+    plt.savefig('plot/ddpg_edf.png')
     # plt.show()
     plt.clf()
 

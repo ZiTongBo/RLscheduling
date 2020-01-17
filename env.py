@@ -5,6 +5,7 @@
 # author：Elan time:2020/1/9
 
 from task import *
+import copy as cp
 
 
 # TODO: 任务到达，终止条件
@@ -16,14 +17,15 @@ class Env(object):
         self.noTask = 0
         self.meanDeadline = 0
         self.meanExecuteTime = 0
-        self.minDeadline = 999
+        self.minDeadline = np.inf
         self.arrTask = 0
-        self.minExecuteTime = 999
+        self.minExecuteTime = np.inf
+        self.saved = []
 
     def reset(self):
         self.time = 0
-        self.noProcessor = 3
-        self.noTask = 6
+        self.noProcessor = 5
+        self.noTask = 10
         self.arrTask = 0
         self.meanDeadline = 0
         self.meanExecuteTime = 0
@@ -68,6 +70,8 @@ class Env(object):
 
     def update(self):
         total_deadline = 0
+        arr_task_deadline = np.zeros(self.arrTask)
+        arr_task_execute = np.zeros(self.arrTask)
         total_execute_time = 0
         self.minDeadline = 999
         self.minExecuteTime = 999
@@ -108,3 +112,17 @@ class Env(object):
         return np.array([task.reExecuteTime, task.reDeadline, task.period,
                          self.arrTask, self.meanExecuteTime, self.minExecuteTime , self.meanDeadline, self.minDeadline])
 
+    def save(self):
+        self.saved = cp.deepcopy(self.taskSet)
+
+    def load(self):
+        self.time = 0
+        self.noProcessor = 5
+        self.noTask = 10
+        self.arrTask = 0
+        self.meanDeadline = 0
+        self.meanExecuteTime = 0
+        self.minDeadline = 999
+        self.minExecuteTime = 999
+        self.taskSet = self.saved
+        self.update()

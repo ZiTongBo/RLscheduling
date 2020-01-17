@@ -12,10 +12,10 @@ np.random.seed(199686)
 # TODO: 生成任务集
 class Task:
     def __init__(self):
-        self.time = np.random.randint(0, 3)
+        self.time = np.random.randint(0, 4)
         self.executeTime = np.random.randint(3, 5)
         self.deadline = self.executeTime + np.random.randint(1, 3)
-        self.period = self.deadline + np.random.randint(1, 3)
+        self.period = self.deadline + np.random.randint(2, 4)
         self.count = 10
         self.isArrive = False
 
