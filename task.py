@@ -5,33 +5,48 @@
 # author：Elan time:2020/1/9
 
 import numpy as np
+from config import *
 
-np.random.seed(199686)
+np.random.seed(6786790)
 
 
-# TODO: 生成任务集
 class Task:
     def __init__(self):
-        self.time = np.random.randint(0, 4)
-        self.executeTime = np.random.randint(3, 5)
-        self.deadline = self.executeTime + np.random.randint(1, 3)
-        self.period = self.deadline + np.random.randint(2, 4)
-        self.count = 10
-        self.isArrive = False
+        interval = np.random.poisson(LAMBDA, FREQUENCY)
+        self.arrive_time = []
+        for i in range(FREQUENCY):
+            interval_from_beginning = 0
+            for j in range(i + 1):
+                interval_from_beginning += interval[j]
+            self.arrive_time.append(interval_from_beginning)
+        self.deadline = np.random.randint(500, 1500, 1)[0]
+        self.execute_time = round(np.random.exponential(self.deadline/6))
+        while self.execute_time > self.deadline:
+            self.execute_time = round(np.random.exponential(self.deadline/6))
+        self.execute_time = np.clip(self.execute_time, MIN_EXECUTE_TIME, MAX_EXECUTE_TIME)
+        self.count = 0
 
-    def arrive(self):
-        self.isArrive = True
-        self.reExecuteTime = self.executeTime
-        self.reDeadline = self.deadline
+    def create_instance(self):
+        i = Instance(self)
+        self.count += 1
+        return i
 
-    def execute(self):
-        self.reExecuteTime -= 1
-        if self.reExecuteTime == 0:
-            self.count -= 1
-            self.isArrive = False
 
-    def miss(self):
-        self.count -= 1
-        self.isArrive = False
+class Instance:
+    def __init__(self, task):
+        self.execute_time = task.execute_time
+        self.deadline = task.deadline
+        self.laxity_time = self.deadline - self.execute_time
+        self.over = False
 
+    def step(self, execute):
+        if execute:
+            self.execute_time -= 1
+        self.deadline -= 1
+        self.laxity_time = self.deadline - self.execute_time
+        if self.execute_time == 0:
+            return "finish"
+        if self.deadline == 0:
+            return "miss"
+        return 0
 

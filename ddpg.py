@@ -160,7 +160,7 @@ class DDPG():
 
         return target_net
 
-    def update(self, batch_size, reward_scale=10.0, gamma=0.99, soft_tau=1e-2, policy_up_itr=10, target_update_delay=3,
+    def update(self, batch_size, reward_scale=10.0, gamma=0.9, soft_tau=1e-2, policy_up_itr=10, target_update_delay=3,
                warmup=True):
         self.update_cnt += 1
         state, action, reward, next_state, done = self.replay_buffer.sample(batch_size)

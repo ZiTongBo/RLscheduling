@@ -9,7 +9,7 @@ from env import *
 from EDF import *
 if __name__ == '__main__':
     replay_buffer = ReplayBuffer(replay_buffer_size)
-    np.set_printoptions(precision=6, suppress=True)
+    np.set_printoptions(precision=2, suppress=True)
     alg = DDPG(replay_buffer, state_dim, action_dim, hidden_dim)
     # alg.load_model(model_path)
 
@@ -33,44 +33,42 @@ if __name__ == '__main__':
         env.save()
         for step in range(max_steps):
             env.arrive()
-            actions = GlobalEDF(env.taskSet, env.noProcessor)
-            reward, _, info = env.step(actions)
-            edf_completed += info[0]
-            for i in range(env.noTask):
-                if actions[i] != 0:
-                    #edf_episode_reward += reward[i]
-                    edf_episode_reward = info[0]
-            edf_episode_reward = edf_completed
-            if env.done():
-                break
+            if len(env.instance) > 0:
+                actions = GlobalEDF(env.instance, env.no_processor)
+                reward, _, info = env.step(actions)
+                edf_completed += info[0]
+                edf_episode_reward = edf_completed
+                if env.done():
+                    break
         env.load()
         for step in range(max_steps):
             actions = []
             states = []
             env.arrive()
-            for task in env.taskSet:
+            no_instance = len(env.instance)
+            for i in env.instance:
                 action = [0]
-                state = [0]
-                if task.isArrive:
-                    state = env.observation(task)
-                    if i_episode > explore_episodes and i_episode % 5 != 0:
-                        action = alg.policy_net.select_action(state, noise)
-                        noise *= 0.999686
-                    else:
-                        action = alg.policy_net.sample_action(action_range=1)
+                state = env.observation(i)
+                if i_episode > explore_episodes and i_episode % 5 != 0:
+                    action = alg.policy_net.select_action(state, noise)
+                    noise *= 0.999686
+                else:
+                    action = alg.policy_net.sample_action(action_range=1)
                 actions.append(np.array(action[0]))
+                print('state',state)
                 states.append(state)
-
-            reward, done, info = env.step(actions)
+            if DEBUG:
+                print(actions)
+            reward, done, next_state, info = env.step(actions)
             completed += info[0]
             missed += info[1]
-            for i in range(env.noTask):
-                if actions[i] != 0:
-                    replay_buffer.push(states[i], [actions[i]], reward[i], env.observation(env.taskSet[i]), done[i])
-                    if i_episode % 101 == 0 and i_episode > 200:
-                        print('time:', env.time, 'noise:', noise)
-                        print(states[i],np.array([actions[i]]), [reward[i]], env.observation(env.taskSet[i]), [done[i]])
-                    #episode_reward += reward[i]
+            for i in range(no_instance):
+                replay_buffer.push(states[i], [actions[i]], reward[i], next_state[i], done[i])
+                if DEBUG:
+                    print('time:', env.time, 'noise:', noise)
+                    #print('state:', states[i], 'action:', actions[i], 'reward:', reward[i], 'next_state:',
+                    #      next_state[i], 'done:', done[i])
+                #episode_reward += reward[i]
 
             episode_reward = completed
             frame_idx += 1

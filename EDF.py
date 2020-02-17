@@ -7,17 +7,13 @@
 import numpy as np
 
 
-def GlobalEDF(task, processor):
-    deadline = np.zeros(len(task))
-    action = np.zeros(len(task))
-    for i in range(len(task)):
-        if task[i].isArrive:
-            deadline[i] = task[i].reDeadline
-        else:
-            deadline[i] = np.inf
-    exec_task = np.argsort(deadline)
-    for i in range(processor):
-        if task[exec_task[i]].isArrive:
-            action[exec_task[i]] = 1
+def GlobalEDF(instance, no_processor):
+    deadline = []
+    action = np.zeros(len(instance))
+    for i in instance:
+        deadline.append(i.deadline)
+    executable = np.argsort(deadline)
+    for i in range(no_processor):
+        action[executable[i]] = 1
     return action
 

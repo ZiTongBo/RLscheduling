@@ -8,121 +8,119 @@ from task import *
 import copy as cp
 
 
-# TODO: 任务到达，终止条件
 class Env(object):
     def __init__(self):
         self.time = 0
-        self.taskSet = []
-        self.noProcessor = 0
-        self.noTask = 0
-        self.meanDeadline = 0
-        self.meanExecuteTime = 0
-        self.minDeadline = np.inf
-        self.arrTask = 0
-        self.minExecuteTime = np.inf
-        self.saved = []
+        self.task_set = []
+        self.instance = []
+        self.no_processor = 0
+        self.no_task = 0
+        self.mean_deadline = 0
+        self.mean_execute = 0
+        self.mean_laxity = 0
+        self.min_deadline = 0
+        self.min_execute = 0
+        self.min_laxity = 0
+        self.saved = 0
 
     def reset(self):
         self.time = 0
-        self.noProcessor = 5
-        self.noTask = 10
-        self.arrTask = 0
-        self.meanDeadline = 0
-        self.meanExecuteTime = 0
-        self.minDeadline = 999
-        self.minExecuteTime = 999
-        self.taskSet = []
-        for i in range(self.noTask):
+        self.no_processor = 100
+        self.no_task = 1000
+        self.task_set = []
+        self.instance = []
+        for i in range(self.no_task):
             task = Task()
-            self.taskSet.append(task)
+            self.task_set.append(task)
         self.update()
+        self.saved = 0
 
     def step(self, actions):
-        reward = np.zeros(self.noTask)
+        reward = np.zeros(len(self.instance))
         global_reward = 0
-        done = np.zeros(self.noTask)
-        exec_task = np.argsort(actions)[::-1]
+        done = np.zeros(len(self.instance))
         info = np.zeros(2)
-        for i in range(self.noProcessor):
-            if self.taskSet[exec_task[i]].isArrive and actions[exec_task[i]]>0:
-                self.taskSet[exec_task[i]].execute()
-                if not self.taskSet[exec_task[i]].isArrive:
-                    reward[exec_task[i]] += 1
-                    info[0] += 1
-                    global_reward += 1
-                    self.taskSet[exec_task[i]].reDeadline -= 1
-                    self.arrTask -= 1
-                    done[exec_task[i]] = 1
-        for i in range(self.noTask):
-            self.taskSet[i].time += 1
-            if self.taskSet[i].isArrive:
-                self.taskSet[i].reDeadline -= 1
-                if self.taskSet[i].reDeadline == 0:
-                    self.taskSet[i].miss()
-                    reward[i] -= 1
-                    global_reward -= 1
-                    self.arrTask -= 1
-                    done[i] = 1
-                    info[1] += 1
+        next_state = []
+        # 对优先级排序，选前m个执行
+        executable = np.argsort(actions)[-self.no_processor:]
+        for i in range(len(self.instance)):
+            execute = False
+            instance = self.instance[i]
+            if i in executable:
+                execute = True
+            result = instance.step(execute)
+            next_state.append(self.observation(instance))
+            if result == "miss":
+                reward[i] -= 1
+                global_reward -= 1
+                instance.over = True
+                done[i] = 1
+                info[1] += 1
+            elif result == "finish":
+                reward[i] += 1
+                info[0] += 1
+                global_reward += 1
+                instance.over = True
+                done[i] = 1
         self.time += 1
         self.update()
-        return reward + global_reward, done, info
+        self.del_instance()
+        return reward + global_reward, done, next_state, info
 
     def update(self):
-        total_deadline = 0
-        arr_task_deadline = np.zeros(self.arrTask)
-        arr_task_execute = np.zeros(self.arrTask)
-        total_execute_time = 0
-        self.minDeadline = 999
-        self.minExecuteTime = 999
-        if self.arrTask == 0:
-            self.meanDeadline = 0
-            self.meanExecuteTime = 0
-            self.minDeadline = 0
-            self.minExecuteTime = 0
+        if len(self.instance) == 0:
+            self.min_deadline = 0
+            self.min_execute = 0
+            self.min_laxity = 0
+            self.mean_deadline = 0
+            self.mean_execute = 0
+            self.mean_laxity = 0
             return
-        for i in range(self.noTask):
-            task = self.taskSet[i]
-            if task.isArrive:
-                total_deadline += task.reDeadline
-                total_execute_time += task.reExecuteTime
-                if task.reDeadline < self.minDeadline:
-                    self.minDeadline = task.reDeadline
-                if task.reExecuteTime < self.minExecuteTime:
-                    self.minExecuteTime = task.reExecuteTime
-        self.meanDeadline = total_deadline / self.arrTask
-        self.meanExecuteTime = total_execute_time / self.arrTask
+        instance_deadline = []
+        instance_execute = []
+        instance_laxity = []
+        for i in self.instance:
+            instance_deadline.append(i.deadline)
+            instance_execute.append(i.execute_time)
+            instance_laxity.append(i.laxity_time)
+        self.min_deadline = min(instance_deadline)
+        self.min_execute = min(instance_execute)
+        self.min_laxity = min(instance_laxity)
+        self.mean_deadline = np.mean(instance_deadline)
+        self.mean_execute = np.mean(instance_execute)
+        self.mean_laxity = np.mean(instance_laxity)
+        print(self.mean_deadline, self.mean_laxity)
 
     def arrive(self):
-        for task in self.taskSet:
-            if not task.isArrive and task.time % task.period == 0 and task.count > 0:
-                task.arrive()
-                self.arrTask += 1
+        for task in self.task_set:
+            if self.time == task.arrive_time[task.count]:
+                self.instance.append(task.create_instance())
         self.update()
 
     def done(self):
-        if self.arrTask > 0:
+        if len(self.instance) > 0:
             return False
-        for i in range(self.noTask):
-            if self.taskSet[i].count > 0:
+        for t in self.task_set:
+            if t.count < FREQUENCY - 1:
                 return False
         return True
 
-    def observation(self, task):
-        return np.array([task.reExecuteTime, task.reDeadline, task.period,
-                         self.arrTask, self.meanExecuteTime, self.minExecuteTime , self.meanDeadline, self.minDeadline])
+    def observation(self, instance):
+        return np.array([instance.execute_time - self.mean_execute, instance.deadline - self.mean_deadline,
+                         instance.laxity_time - self.mean_laxity, instance.execute_time - self.min_execute,
+                         instance.deadline - self.min_deadline, instance.laxity_time - self.min_laxity])
 
     def save(self):
-        self.saved = cp.deepcopy(self.taskSet)
+        self.saved = cp.deepcopy(self.task_set)
 
     def load(self):
         self.time = 0
-        self.noProcessor = 5
-        self.noTask = 10
-        self.arrTask = 0
-        self.meanDeadline = 0
-        self.meanExecuteTime = 0
-        self.minDeadline = 999
-        self.minExecuteTime = 999
-        self.taskSet = self.saved
+        self.instance = []
+        self.task_set = self.saved
         self.update()
+
+    def del_instance(self):
+        for i in self.instance:
+            if i.over:
+                self.instance.remove(i)
+                del i
