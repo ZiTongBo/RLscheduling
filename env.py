@@ -21,12 +21,16 @@ class Env(object):
         self.min_deadline = 0
         self.min_execute = 0
         self.min_laxity = 0
+        self.max_deadline = 0
+        self.max_execute = 0
+        self.max_laxity = 0
         self.saved = 0
 
     def reset(self):
         self.time = 0
-        self.no_processor = 100
-        self.no_task = 1000
+        del self.task_set
+        self.no_processor = NO_PROCESSOR
+        self.no_task = NO_TASK
         self.task_set = []
         self.instance = []
         for i in range(self.no_task):
@@ -34,6 +38,7 @@ class Env(object):
             self.task_set.append(task)
         self.update()
         self.saved = 0
+        self.arrive()
 
     def step(self, actions):
         reward = np.zeros(len(self.instance))
@@ -44,26 +49,25 @@ class Env(object):
         # 对优先级排序，选前m个执行
         executable = np.argsort(actions)[-self.no_processor:]
         for i in range(len(self.instance)):
-            execute = False
             instance = self.instance[i]
-            if i in executable:
-                execute = True
-            result = instance.step(execute)
-            next_state.append(self.observation(instance))
+            result = instance.step(True if i in executable else False)
             if result == "miss":
-                reward[i] -= 1
+                #reward[i] -= 1
                 global_reward -= 1
                 instance.over = True
                 done[i] = 1
                 info[1] += 1
             elif result == "finish":
-                reward[i] += 1
+                #reward[i] += 1
                 info[0] += 1
                 global_reward += 1
                 instance.over = True
                 done[i] = 1
         self.time += 1
+        self.arrive()
         self.update()
+        for i in range(len(self.instance)):
+            next_state.append(self.observation(self.instance[i]))
         self.del_instance()
         return reward + global_reward, done, next_state, info
 
@@ -75,6 +79,9 @@ class Env(object):
             self.mean_deadline = 0
             self.mean_execute = 0
             self.mean_laxity = 0
+            self.max_deadline = 0
+            self.max_execute = 0
+            self.max_laxity = 0
             return
         instance_deadline = []
         instance_execute = []
@@ -86,14 +93,16 @@ class Env(object):
         self.min_deadline = min(instance_deadline)
         self.min_execute = min(instance_execute)
         self.min_laxity = min(instance_laxity)
+        self.max_deadline = max(instance_deadline)
+        self.max_execute = max(instance_execute)
+        self.max_laxity = max(instance_laxity)
         self.mean_deadline = np.mean(instance_deadline)
         self.mean_execute = np.mean(instance_execute)
         self.mean_laxity = np.mean(instance_laxity)
-        print(self.mean_deadline, self.mean_laxity)
 
     def arrive(self):
         for task in self.task_set:
-            if self.time == task.arrive_time[task.count]:
+            if task.count < FREQUENCY and self.time == task.arrive_time[task.count]:
                 self.instance.append(task.create_instance())
         self.update()
 
@@ -107,8 +116,8 @@ class Env(object):
 
     def observation(self, instance):
         return np.array([instance.execute_time - self.mean_execute, instance.deadline - self.mean_deadline,
-                         instance.laxity_time - self.mean_laxity, instance.execute_time - self.min_execute,
-                         instance.deadline - self.min_deadline, instance.laxity_time - self.min_laxity])
+                         instance.execute_time - self.max_execute, instance.deadline - self.max_deadline,
+                         instance.execute_time - self.min_execute, instance.deadline - self.min_deadline])
 
     def save(self):
         self.saved = cp.deepcopy(self.task_set)
@@ -116,11 +125,13 @@ class Env(object):
     def load(self):
         self.time = 0
         self.instance = []
-        self.task_set = self.saved
+        del self.task_set
+        self.task_set = cp.deepcopy(self.saved)
+        del self.saved
         self.update()
 
     def del_instance(self):
-        for i in self.instance:
+        for i in self.instance[::-1]:
             if i.over:
                 self.instance.remove(i)
                 del i

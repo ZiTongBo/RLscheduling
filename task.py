@@ -7,7 +7,7 @@
 import numpy as np
 from config import *
 
-np.random.seed(6786790)
+np.random.seed(199686)
 
 
 class Task:
@@ -19,17 +19,14 @@ class Task:
             for j in range(i + 1):
                 interval_from_beginning += interval[j]
             self.arrive_time.append(interval_from_beginning)
-        self.deadline = np.random.randint(500, 1500, 1)[0]
-        self.execute_time = round(np.random.exponential(self.deadline/6))
-        while self.execute_time > self.deadline:
-            self.execute_time = round(np.random.exponential(self.deadline/6))
-        self.execute_time = np.clip(self.execute_time, MIN_EXECUTE_TIME, MAX_EXECUTE_TIME)
+        self.deadline = np.random.randint(MIN_DEADLINE, MAX_DEADLINE, 1)[0]
+        self.execute_time = round(np.random.exponential(self.deadline * GRANULARITY))
+        self.execute_time = np.clip(self.execute_time, MIN_EXECUTE_TIME, self.deadline)
         self.count = 0
 
     def create_instance(self):
-        i = Instance(self)
         self.count += 1
-        return i
+        return Instance(self)
 
 
 class Instance:
@@ -46,7 +43,7 @@ class Instance:
         self.laxity_time = self.deadline - self.execute_time
         if self.execute_time == 0:
             return "finish"
-        if self.deadline == 0:
+        if self.laxity_time < 0:
             return "miss"
-        return 0
+        return
 

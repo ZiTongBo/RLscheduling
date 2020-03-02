@@ -26,6 +26,7 @@ import argparse
 
 if GPU:
     device = torch.device("cuda:" + str(device_idx) if torch.cuda.is_available() else "cpu")
+    print(torch.cuda.is_available())
 else:
     device = torch.device("cpu")
 torch.autograd.set_detect_anomaly(True)
@@ -64,8 +65,8 @@ class ActorNetwork(nn.Module):
         self.action_dim = output_dim
 
         self.linear1 = nn.Linear(input_dim, hidden_dim)
-        self.linear2 = nn.Linear(hidden_dim, hidden_dim)
-        self.linear3 = nn.Linear(hidden_dim, output_dim)  # output dim = dim of action
+        self.linear2 = nn.Linear(hidden_dim, int(hidden_dim/2))
+        self.linear3 = nn.Linear(int(hidden_dim/2), output_dim)  # output dim = dim of action
 
         # weights initialization
         self.linear3.weight.data.uniform_(-init_w, init_w)
@@ -93,9 +94,9 @@ class ActorNetwork(nn.Module):
         torch.clamp(action, 0, 1)
         return action.detach().cpu().numpy()[0]
 
-    def sample_action(self, action_range=1.):
-        normal = Normal(0.5, 0.4)
-        #random_action = torch.from_numpy(np.clip(normal.sample((1,)).numpy(), 0.001, 1))
+    @staticmethod
+    def sample_action(action_range=1.):
+        normal = Normal(0.5, 1)
         random_action = torch.clamp(normal.sample((1,)), 0.001, 1)
         return random_action.cpu().numpy()
 
@@ -116,8 +117,8 @@ class QNetwork(nn.Module):
         super(QNetwork, self).__init__()
 
         self.linear1 = nn.Linear(input_dim, hidden_dim)
-        self.linear2 = nn.Linear(hidden_dim, hidden_dim)
-        self.linear3 = nn.Linear(hidden_dim, 1)
+        self.linear2 = nn.Linear(hidden_dim, int(hidden_dim/2))
+        self.linear3 = nn.Linear(int(hidden_dim/2), 1)
 
         self.linear3.weight.data.uniform_(-init_w, init_w)
         self.linear3.bias.data.uniform_(-init_w, init_w)
@@ -130,7 +131,7 @@ class QNetwork(nn.Module):
         return x
 
 
-class DDPG():
+class DDPG:
     def __init__(self, replay_buffer, state_dim, action_dim, hidden_dim):
         self.replay_buffer = replay_buffer
         self.q_net = QNetwork(state_dim + action_dim, hidden_dim).to(device)
@@ -144,7 +145,7 @@ class DDPG():
         for target_param, param in zip(self.target_qnet.parameters(), self.q_net.parameters()):
             target_param.data.copy_(param.data)
         self.q_criterion = nn.MSELoss()
-        q_lr = 5e-4
+        q_lr = 1e-3
         policy_lr = 1e-4
         self.update_cnt = 0
 
@@ -210,33 +211,14 @@ class DDPG():
         self.target_qnet.eval()
         self.policy_net.eval()
 
-
-def plot(rewards, edf_rewards):
-    plt.figure(figsize=(20, 5))
-    plt.plot(range(len(rewards)), rewards, color='green', label='DDPG')
-    plt.plot(range(len(edf_rewards)), edf_rewards, color='red', label='EDF')
-    plt.savefig('plot/ddpg_edf.png')
-    # plt.show()
-    plt.clf()
-
-
-def _reverse_action(action):
-    low = 0
-    high = 1
-
-    action = 2 * (action - low) / (high - low) - 1
-    action = np.clip(action, low, high)
-
-    return action
-
-
-class NormalizedActions():  # gym env wrapper
-    def _action(self, action):
-        low = 0
-        high = 1
-
-        action = low + (action + 1.0) * 0.5 * (high - low)
-        action = np.clip(action, low, high)
-
-        return action
+    def plot(self,rewards, edf_rewards):
+        plt.close("all")
+        plt.figure(figsize=(20, 5))
+        plt.plot(range(len(rewards)), rewards, color='green', label='DDPG')
+        plt.plot(range(len(edf_rewards)), edf_rewards, color='red', label='EDF')
+        plt.legend()
+        plt.ylim(0, 100)
+        plt.savefig('plot/ddpg_edf.png')
+        # plt.show()
+        plt.clf()
 
