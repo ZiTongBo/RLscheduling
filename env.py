@@ -48,6 +48,7 @@ class Env(object):
         next_state = []
         # 对优先级排序，选前m个执行
         executable = np.argsort(actions)[-self.no_processor:]
+        #print(executable)
         for i in range(len(self.instance)):
             instance = self.instance[i]
             result = instance.step(True if i in executable else False)
@@ -69,7 +70,7 @@ class Env(object):
         for i in range(len(self.instance)):
             next_state.append(self.observation(self.instance[i]))
         self.del_instance()
-        return reward + global_reward, done, next_state, info
+        return global_reward, self.done(), next_state, info
 
     def update(self):
         if len(self.instance) == 0:
@@ -108,11 +109,11 @@ class Env(object):
 
     def done(self):
         if len(self.instance) > 0:
-            return False
+            return 0
         for t in self.task_set:
             if t.count < FREQUENCY - 1:
-                return False
-        return True
+                return 0
+        return 1
 
     def observation(self, instance):
         return np.array([instance.execute_time - self.mean_execute, instance.deadline - self.mean_deadline,

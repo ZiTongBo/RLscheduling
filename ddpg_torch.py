@@ -41,12 +41,27 @@ class ReplayBuffer:
     def push(self, state, action, reward, next_state, done):
         if len(self.buffer) < self.capacity:
             self.buffer.append(None)
-        self.buffer[self.position] = (state, action, reward, next_state, done)
+        index = ['state', 'action', 'reward', 'next', 'done']
+        dic = dict(zip(index, [state, action, reward, next_state, done]))
+        self.buffer[self.position] = dic
+        # self.buffer[self.position] = (state, action, reward, next_state, done)
         self.position = int((self.position + 1) % self.capacity)  # as a ring buffer
 
     def sample(self, batch_size):
         batch = random.sample(self.buffer, batch_size)
-        state, action, reward, next_state, done = map(np.stack, zip(*batch))  # stack for each element
+        state = []
+        action = []
+        reward = []
+        next_state = []
+        done = []
+        for i in range(batch_size):
+            state.append(batch[i]['state'])
+            action.append(batch[i]['action'])
+            reward.append(batch[i]['reward'])
+            next_state.append(batch[i]['next'])
+            done.append(batch[i]['done'])
+        # state, action, reward, next_state, done = map(np.stack, zip(*batch))  # stack for each element
+
         ''' 
         the * serves as unpack: sum(a,b) <=> batch=(a,b), sum(*batch) ;
         zip: a=[1,2], b=[2,3], zip(a,b) => [(1, 2), (2, 3)] ;
@@ -64,9 +79,9 @@ class ActorNetwork(nn.Module):
         super(ActorNetwork, self).__init__()
         self.action_dim = output_dim
 
-        self.linear1 = nn.Linear(input_dim, hidden_dim)
-        self.linear2 = nn.Linear(hidden_dim, int(hidden_dim/2))
-        self.linear3 = nn.Linear(int(hidden_dim/2), output_dim)  # output dim = dim of action
+        self.linear1 = nn.Linear(input_dim, hidden_dim[0])
+        self.linear2 = nn.Linear(hidden_dim[0], hidden_dim[1])
+        self.linear3 = nn.Linear(hidden_dim[1], output_dim)  # output dim = dim of action
 
         # weights initialization
         self.linear3.weight.data.uniform_(-init_w, init_w)
@@ -85,9 +100,7 @@ class ActorNetwork(nn.Module):
         '''
         state = torch.FloatTensor(state).unsqueeze(0).to(device)  # state dim: (N, dim of state)
         normal = Normal(0, noise)
-        # print(state)
         action = self.forward(state)
-        # print(action)
         noise = noise_scale * normal.sample(action.shape).to(device)
         action += noise
         # action = torch.from_numpy(np.clip(action.detach().numpy(), 0, 1)[0])
@@ -116,9 +129,9 @@ class QNetwork(nn.Module):
     def __init__(self, input_dim, hidden_dim, init_w=3e-3):
         super(QNetwork, self).__init__()
 
-        self.linear1 = nn.Linear(input_dim, hidden_dim)
-        self.linear2 = nn.Linear(hidden_dim, int(hidden_dim/2))
-        self.linear3 = nn.Linear(int(hidden_dim/2), 1)
+        self.linear1 = nn.Linear(input_dim, hidden_dim[0])
+        self.linear2 = nn.Linear(hidden_dim[0], hidden_dim[1])
+        self.linear3 = nn.Linear(hidden_dim[1], 1)
 
         self.linear3.weight.data.uniform_(-init_w, init_w)
         self.linear3.bias.data.uniform_(-init_w, init_w)
@@ -166,18 +179,44 @@ class DDPG:
         self.update_cnt += 1
         state, action, reward, next_state, done = self.replay_buffer.sample(batch_size)
         # print('sample:', state, action,  reward, done)
-        state = torch.FloatTensor(state).to(device)
-        next_state = torch.FloatTensor(next_state).to(device)
-        action = torch.FloatTensor(action).to(device)
         reward = torch.FloatTensor(reward).unsqueeze(1).to(device)
-        done = torch.FloatTensor(np.float32(done)).unsqueeze(1).to(device)
+        done = torch.FloatTensor(done).unsqueeze(1).to(device)
+        # print(reward.shape,state)
+        predict_q = []
+        new_next_action = []  # for q
+        new_action = []  # for policy
+        predict_new_q =[]
+        target_q = []
+        for i in range(batch_size):
+            state1 = torch.FloatTensor(state[i]).to(device)
+            next_state1 = torch.FloatTensor(next_state[i]).to(device)
+            action1 = torch.FloatTensor(action[i]).to(device)
+            pq = torch.mean(self.q_net(state1, action1), 0)
+            nna = self.target_policy_net.evaluate_action(next_state1)
+            na = self.policy_net.evaluate_action(state1)
+            predict_q.append(pq)
+            new_next_action.append(nna)
+            new_action.append(na)
+            pnq = torch.mean(self.q_net(state1, na), 0)
+            predict_new_q.append(pnq)
+            tq = reward[i] + (1 - done[i]) * gamma * torch.mean(self.target_qnet(next_state1, nna), 0)
+            target_q.append(tq)
+            #print()
+        #state = torch.FloatTensor(state).to(device)
+        #next_state = torch.FloatTensor(next_state).to(device)
+        #action = torch.FloatTensor(action).to(device)
+        #reward = torch.FloatTensor(reward).unsqueeze(1).to(device)
+        #done = torch.FloatTensor(np.float32(done)).unsqueeze(1).to(device)
 
-        predict_q = self.q_net(state, action)  # for q
-        new_next_action = self.target_policy_net.evaluate_action(next_state)  # for q
-        new_action = self.policy_net.evaluate_action(state)  # for policy
-        predict_new_q = self.q_net(state, new_action)  # for policy
-        target_q = reward + (1 - done) * gamma * self.target_qnet(next_state, new_next_action)  # for q
+        #predict_q = self.q_net(state, action)  # for q
+        #new_next_action = self.target_policy_net.evaluate_action(next_state)  # for q
+        #new_action = self.policy_net.evaluate_action(state)  # for policy
+        #predict_new_q = self.q_net(state, new_action)  # for policy
+        #target_q = reward + (1 - done) * gamma * self.target_qnet(next_state, new_next_action)  # for q
         # reward = reward_scale * (reward - reward.mean(dim=0)) /reward.std(dim=0) # normalize with batch mean and std
+        predict_q = torch.stack(predict_q).to(device)
+        target_q = torch.stack(target_q).to(device)
+        predict_new_q = torch.stack(predict_new_q).to(device)
 
         # train qnet
         q_loss = self.q_criterion(predict_q, target_q.detach())
@@ -218,7 +257,6 @@ class DDPG:
         plt.plot(range(len(edf_rewards)), edf_rewards, color='red', label='EDF')
         plt.legend()
         plt.ylim(0, 100)
-        plt.savefig('plot/ddpg_edf.png')
+        plt.savefig('plot/ddpgVSedf.png')
         # plt.show()
         plt.clf()
-

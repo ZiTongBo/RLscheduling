@@ -19,13 +19,13 @@ GRANULARITY = 1 / 2
 MAX_EXECUTE_TIME = MAX_DEADLINE
 MIN_EXECUTE_TIME = 5
 LAMBDA = 100
-FREQUENCY = 50
+FREQUENCY = 20
 NO_TASK = 50
 NO_PROCESSOR = 20
 
-hidden_dim = 32
+HIDDEN = [32, 16]
 explore_episodes = 0  # for random exploration
-batch_size = 128
+BATCH_SIZE = 16
 replay_buffer_size = 1e4
 model_path = './model/'
 max_episodes = 100000

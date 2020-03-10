@@ -20,7 +20,7 @@ class Task:
                 interval_from_beginning += interval[j]
             self.arrive_time.append(interval_from_beginning)
         self.deadline = np.random.randint(MIN_DEADLINE, MAX_DEADLINE, 1)[0]
-        self.execute_time = round(np.random.exponential(self.deadline * GRANULARITY))
+        self.execute_time = round(np.random.exponential((MAX_DEADLINE + MIN_DEADLINE) * GRANULARITY / 2))
         self.execute_time = np.clip(self.execute_time, MIN_EXECUTE_TIME, self.deadline)
         self.count = 0
 
@@ -43,7 +43,7 @@ class Instance:
         self.laxity_time = self.deadline - self.execute_time
         if self.execute_time == 0:
             return "finish"
-        if self.laxity_time < 0:
+        if self.deadline == 0:
             return "miss"
         return
 
