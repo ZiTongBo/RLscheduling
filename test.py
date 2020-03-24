@@ -13,11 +13,24 @@ import math
 import torch
 import os
 import time
-os.environ['TF_CPP_MIN_LOG_LEVEL']='2'
-t =[]
+import datetime
+from env import *
+from timeit import timeit
+from timeit import repeat
+
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
+t = []
 e = 0
 with tf.variable_scope('foo'):
     v = tf.get_variable('v', [1], initializer=tf.constant_initializer(1.0))
+
+
+def sigmoid(x):
+    return 1 / (1 + np.exp(-x))
+
+
+def tanh(x):
+    return ()
 
 
 def partition(arr, low, high):
@@ -48,69 +61,188 @@ def quickSort(arr, low, high):
         quickSort(arr, pi + 1, high)
 
 
-d = 8
-print(ddpg_tf.lcm([2,3,4]))
-print(np.hstack(([2],[3])))
-c = [[[2, 0, 0, 0, 0], [0, 0, 0, 0, 0],[2,3,4,3,2]], [[0], [0],[1]], 0, [[0, 0, 0, 0, 0], [0, 0, 0, 0, 0],[3,3,2,1,1]]]
-cc= [[2],[3],[4]]
-print(np.mean(cc[0:2],axis=0))
-print(np.vstack((c[3],c[0])))
-print(len(c[0]))
-d = np.array(c)
-C = tf.placeholder(tf.float32, [None, None, 1], 's')
-print(d)
-step = tf.reduce_mean(C)
+# 返回 x 在 arr 中的索引，如果不存在返回 -1
+def binarySearch(arr, l, r, x):
+    # 基本判断
+    if r >= l:
 
-replay_buffer = ReplayBuffer(replay_buffer_size)
-al = ddpg_torch.DDPG(replay_buffer, 5,1,[16,8])
+        mid = int(l + (r - l) / 2)
+
+        # 元素整好的中间位置
+        if arr[mid] == x:
+            return mid
+
+            # 元素小于中间位置的元素，只需要再比较左边的元素
+        elif arr[mid] > x:
+            return binarySearch(arr, l, mid - 1, x)
+
+            # 元素大于中间位置的元素，只需要再比较右边的元素
+        else:
+            return binarySearch(arr, mid + 1, r, x)
+
+    else:
+        # 不存在
+        return -1
+
+
+# 测试数组
+arr = np.random.random(10000000)
+print(arr)
+np.sort(arr)
+x = 0.323
+st = time.time()
+
+# 函数调用
+result = binarySearch(arr, 0, len(arr) - 1, x)
+ts = time.time()
+print(ts - st)
+replay = ReplayBuffer(1000)
+ddpg = ddpg_torch.DDPG(replay, 5, 1, [32, 16])
+
+np.set_printoptions(precision=2, suppress=True)
+input = 20
+result = []
+w1 = np.random.random((5, 32))
+b1 = np.random.random((input, 32))
+w2 = np.random.random((32, 16))
+b2 = np.random.random((input, 16))
+w3 = np.random.random((16, 1))
+b3 = np.random.random((input, 1))
+for i in range(10):
+    t1 = time.process_time()
+    for j in range(10):
+        temp = np.random.random((input, 5))
+        o1 = sigmoid(np.add(np.matmul(temp, w1), b1))
+        o2 = sigmoid(np.add(np.matmul(o1, w2), b2))
+        o3 = np.add(np.matmul(o2, w3), b3)
+        np.sort(np.squeeze(o3), kind='quicksort')
+    t3 = time.process_time()
+    result.append(t3 - t1)
+
+print('20:', min(result) * 100, np.mean(result) * 100, max(result) * 100)
+input = 50
+result = []
+w1 = np.random.random((5, 32))
+b1 = np.random.random((input, 32))
+w2 = np.random.random((32, 16))
+b2 = np.random.random((input, 16))
+w3 = np.random.random((16, 1))
+b3 = np.random.random((input, 1))
 for i in range(100):
-    replay_buffer.push(c[0],c[1],c[2],c[3],0)
-d = 8
-q_loss, policy_loss = al.update(4)
-temp = np.random.random((100,5))
-sort = np.random.random(10000)
-print(np.array([2]))
-start = time.time()
-action = al.policy_net.select_action(temp,0)
-quickSort(np.squeeze(action),0,99)
-e1 = time.time()
-print(e1-start)
-#print(action)
-# s1 = time.time()
-# for i in range(101):
-#     action = al.policy_net.select_action(c[0][1],0)
-# e2=time.time()
-#
-# print(e2-s1)
-
-s4=time.time()
-#print(sort)
-sr = quickSort(sort,0,99)
-e3=time.time()
-#print(sr)
-print(e3-s4)
-s5=time.time()
-np.sort(sort)
-e5 = time.time()
-print(e5-s5)
-#s=np.array([[[1,2,3,4,5],[2,3,4,5,6],[3,2,2,2,2]],[[2,3,4,3,4],[3,42,5,2,1]]])
-#print(s.shape)
-#t = al.sess.run(al.q, {al.S: s})
-#print(t)
-# for i in range(102):
-#     al.store_transition([[1,2,3,2,3],[3,4,5,3,2]],[[1],[2]],[2],[[25,5,5,3,4],[1,2,3,2,3]])
-# al.store_transition([[2, 0, 0, 0, 0], [0, 0, 0, 0, 0],[2,3,4,3,2]], [[0], [0],[1]], [[0], [0],[0]], [[0, 0, 0, 0, 0], [0, 0, 0, 0, 0],[3,3,2,1,1]])
-# print(al.memory[2][1])
-# print(al.learn())
-
-#ere = al.choose_action(np.array([2,2,3,4,5]))
-#print(ere)
-c = []
-
+    t1 = time.process_time()
+    for j in range(10):
+        temp = np.random.random((input, 5))
+        o1 = sigmoid(np.add(np.matmul(temp, w1), b1))
+        o2 = sigmoid(np.add(np.matmul(o1, w2), b2))
+        o3 = np.add(np.matmul(o2, w3), b3)
+        np.sort(np.squeeze(o3), kind='quicksort')
+    t3 = time.process_time()
+    result.append(t3 - t1)
+    # np.sort(np.squeeze(o3),kind='quicksort')
+print('50:', min(result) * 100, np.mean(result) * 100, max(result) * 100)
+input = 50
+result = []
+w1 = np.random.random((5, 32))
+b1 = np.random.random((input, 32))
+w2 = np.random.random((32, 16))
+b2 = np.random.random((input, 16))
+w3 = np.random.random((16, 1))
+b3 = np.random.random((input, 1))
+for i in range(100):
+    t1 = time.process_time()
+    for j in range(10):
+        temp = np.random.random((input, 5))
+        o1 = np.maximum(np.add(np.matmul(temp, w1), b1), 0)
+        o2 = np.maximum(np.add(np.matmul(o1, w2), b2), 0)
+        o3 = np.add(np.matmul(o2, w3), b3)
+        np.sort(np.squeeze(o3), kind='quicksort')
+    t3 = time.process_time()
+    result.append(t3 - t1)
+    # np.sort(np.squeeze(o3),kind='quicksort')
+print('50:', min(result) * 100, np.mean(result) * 100, max(result) * 100)
+input = 100
+result = []
+w1 = np.random.random((5, 32))
+b1 = np.random.random((input, 32))
+w2 = np.random.random((32, 16))
+b2 = np.random.random((input, 16))
+w3 = np.random.random((16, 1))
+b3 = np.random.random((input, 1))
+for i in range(100):
+    t1 = time.process_time()
+    for j in range(10):
+        temp = np.random.random((input, 5))
+        o1 = np.maximum(np.add(np.matmul(temp, w1), b1), 0)
+        o2 = np.maximum(np.add(np.matmul(o1, w2), b2), 0)
+        o3 = np.add(np.matmul(o2, w3), b3)
+        # np.sort(np.squeeze(o3), kind='quicksort')
+    t3 = time.process_time()
+    result.append(t3 - t1)
+    # np.sort(np.squeeze(o3),kind='quicksort')
+print('100:', min(result) * 100, np.mean(result) * 100, max(result) * 100)
+input = 200
+result = []
+liner = []
+non = []
+w1 = np.random.random((5, 32))
+b1 = np.random.random((input, 32))
+w2 = np.random.random((32, 16))
+b2 = np.random.random((input, 16))
+w3 = np.random.random((16, 1))
+b3 = np.random.random((input, 1))
 for i in range(1000):
-    task1 = Task()
-    c.append(task1.execute_time)
-print(np.mean(c))
+    t1 = time.clock()
+    for j in range(1):
+        temp = np.random.random((input, 5))
+        l1 = time.clock()
+        o1 = np.add(np.matmul(temp, w1), b1)
+        l2 = time.clock()
+        o1 = sigmoid(o1)
+        l3 = time.clock()
+        o2 = np.add(np.matmul(o1, w2), b2)
+        l4 = time.clock()
+        o2 = sigmoid(o2)
+        l5 = time.clock()
+        o3 = np.add(np.matmul(o2, w3), b3)
+        l6 = time.clock()
+        # np.sort(np.squeeze(o3), kind='quicksort')
+        liner.append(l6 - l5 + l4 - l3 + l2 - l1)
+        non.append(l5 - l4 + l3 - l2)
+    t3 = time.clock()
+    result.append(t3 - t1)
+
+    # np.sort(np.squeeze(o3),kind='quicksort')
+# print(np.array(result) * 1000)
+print(liner)
+print(non)
+print(np.mean(liner) / (np.mean(liner) + np.mean(non)))
+print('200:', min(result) * 1000, np.mean(result) * 1000, max(result) * 1000)
+
+result = []
+input = 200
+w1 = np.random.random((8, 16))
+b1 = np.random.random((input, 16))
+w2 = np.random.random((16, 8))
+b2 = np.random.random((input, 8))
+w3 = np.random.random((8, 1))
+b3 = np.random.random((input, 1))
+
+temp = np.random.random((input, 8))
 
 
+def nn():
+    o1 = np.maximum(np.add(np.matmul(temp, w1), b1) ,0)
+    o2 = np.maximum(np.add(np.matmul(o1, w2), b2), 0)
+    o3 = np.add(np.matmul(o2, w3), b3)
 
+def nnn():
+    temp = np.random.random((input, 8))
+
+
+te = repeat('nnn()', 'from __main__ import nnn', number=1,repeat=10)
+te = []
+for i in range(10):
+    temp = np.random.random((input, 8))
+    t = timeit('nn()', 'from __main__ import nn', number=1)
+    te.append(t)
+print('new:', min(te)*1000,np.mean(te)*1000,max(te)*1000)

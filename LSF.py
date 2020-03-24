@@ -7,7 +7,7 @@
 import numpy as np
 
 
-def GlobalLLF(instance, no_processor):
+def GlobalLSF(instance, no_processor):
     laxity = []
     action = np.zeros(len(instance))
     for i in instance:

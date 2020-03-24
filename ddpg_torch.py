@@ -25,7 +25,7 @@ from IPython.display import display
 import argparse
 
 if GPU:
-    device = torch.device("cuda:" + str(device_idx) if torch.cuda.is_available() else "cpu")
+    device = torch.device("cuda:" + str(DEVICE_INDEX) if torch.cuda.is_available() else "cpu")
     print(torch.cuda.is_available())
 else:
     device = torch.device("cpu")
@@ -88,13 +88,13 @@ class ActorNetwork(nn.Module):
         self.linear3.bias.data.uniform_(-init_w, init_w)
 
     def forward(self, state):
-        activation = torch.relu
+        activation = torch.tanh
         x = activation(self.linear1(state))
         x = activation(self.linear2(x))
         x = torch.sigmoid(self.linear3(x)).clone()  # for simplicity, no restriction on action rang
         return x
 
-    def select_action(self, state, noise, noise_scale=0.5):
+    def select_action(self, state, noise=0, noise_scale=0.5):
         '''
         select action for sampling, no gradients flow, noisy action, return .cpu
         '''
@@ -138,7 +138,7 @@ class QNetwork(nn.Module):
 
     def forward(self, state, action):
         x = torch.cat([state, action], 1)  # the dim 0 is number of samples
-        x = F.relu(self.linear1(x))
+        x = torch.tanh(self.linear1(x))
         x = torch.tanh(self.linear2(x))
         x = self.linear3(x)
         return x
@@ -158,8 +158,8 @@ class DDPG:
         for target_param, param in zip(self.target_qnet.parameters(), self.q_net.parameters()):
             target_param.data.copy_(param.data)
         self.q_criterion = nn.MSELoss()
-        q_lr = 1e-3
-        policy_lr = 1e-4
+        q_lr = 1e-4
+        policy_lr = 1e-5
         self.update_cnt = 0
 
         self.q_optimizer = optim.Adam(self.q_net.parameters(), lr=q_lr)
@@ -174,7 +174,7 @@ class DDPG:
 
         return target_net
 
-    def update(self, batch_size, reward_scale=10.0, gamma=0.9, soft_tau=1e-2, policy_up_itr=10, target_update_delay=3,
+    def update(self, batch_size, reward_scale=10.0, gamma=0.99, soft_tau=1e-2, policy_up_itr=10, target_update_delay=3,
                warmup=True):
         self.update_cnt += 1
         state, action, reward, next_state, done = self.replay_buffer.sample(batch_size)
@@ -183,9 +183,7 @@ class DDPG:
         done = torch.FloatTensor(done).unsqueeze(1).to(device)
         # print(reward.shape,state)
         predict_q = []
-        new_next_action = []  # for q
-        new_action = []  # for policy
-        predict_new_q =[]
+        predict_new_q = []
         target_q = []
         for i in range(batch_size):
             state1 = torch.FloatTensor(state[i]).to(device)
@@ -195,24 +193,21 @@ class DDPG:
             nna = self.target_policy_net.evaluate_action(next_state1)
             na = self.policy_net.evaluate_action(state1)
             predict_q.append(pq)
-            new_next_action.append(nna)
-            new_action.append(na)
             pnq = torch.mean(self.q_net(state1, na), 0)
             predict_new_q.append(pnq)
             tq = reward[i] + (1 - done[i]) * gamma * torch.mean(self.target_qnet(next_state1, nna), 0)
             target_q.append(tq)
-            #print()
-        #state = torch.FloatTensor(state).to(device)
-        #next_state = torch.FloatTensor(next_state).to(device)
-        #action = torch.FloatTensor(action).to(device)
-        #reward = torch.FloatTensor(reward).unsqueeze(1).to(device)
-        #done = torch.FloatTensor(np.float32(done)).unsqueeze(1).to(device)
+        # state = torch.FloatTensor(state).to(device)
+        # next_state = torch.FloatTensor(next_state).to(device)
+        # action = torch.FloatTensor(action).to(device)
+        # reward = torch.FloatTensor(reward).unsqueeze(1).to(device)
+        # done = torch.FloatTensor(np.float32(done)).unsqueeze(1).to(device)
 
-        #predict_q = self.q_net(state, action)  # for q
-        #new_next_action = self.target_policy_net.evaluate_action(next_state)  # for q
-        #new_action = self.policy_net.evaluate_action(state)  # for policy
-        #predict_new_q = self.q_net(state, new_action)  # for policy
-        #target_q = reward + (1 - done) * gamma * self.target_qnet(next_state, new_next_action)  # for q
+        # predict_q = self.q_net(state, action)  # for q
+        # new_next_action = self.target_policy_net.evaluate_action(next_state)  # for q
+        # new_action = self.policy_net.evaluate_action(state)  # for policy
+        # predict_new_q = self.q_net(state, new_action)  # for policy
+        # target_q = reward + (1 - done) * gamma * self.target_qnet(next_state, new_next_action)  # for q
         # reward = reward_scale * (reward - reward.mean(dim=0)) /reward.std(dim=0) # normalize with batch mean and std
         predict_q = torch.stack(predict_q).to(device)
         target_q = torch.stack(target_q).to(device)
@@ -250,13 +245,16 @@ class DDPG:
         self.target_qnet.eval()
         self.policy_net.eval()
 
-    def plot(self,rewards, edf_rewards):
+    def plot(self, rewards, edf_rewards, lsf_rewards):
         plt.close("all")
         plt.figure(figsize=(20, 5))
         plt.plot(range(len(rewards)), rewards, color='green', label='DDPG')
         plt.plot(range(len(edf_rewards)), edf_rewards, color='red', label='EDF')
+        plt.plot(range(len(lsf_rewards)), lsf_rewards, color='blue', label='LSF')
+        plt.xlabel('Episode')
+        plt.ylabel('Scheduling Success Ratio ')
         plt.legend()
         plt.ylim(0, 100)
-        plt.savefig('plot/ddpgVSedf.png')
+        plt.savefig('plot/ddpg VS edf delay.png')
         # plt.show()
         plt.clf()

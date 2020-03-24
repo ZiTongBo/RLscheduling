@@ -25,45 +25,41 @@ class Env(object):
         self.max_execute = 0
         self.max_laxity = 0
         self.saved = 0
+        self.count = 0
 
     def reset(self):
         self.time = 0
         del self.task_set
-        self.no_processor = NO_PROCESSOR
-        self.no_task = NO_TASK
+        self.no_processor = np.random.randint(NO_PROCESSOR - 4, NO_PROCESSOR + 4)
+        self.no_task = self.no_processor * TASK_PER_PROCESSOR
         self.task_set = []
         self.instance = []
         for i in range(self.no_task):
             task = Task()
             self.task_set.append(task)
-        self.update()
         self.saved = 0
         self.arrive()
+        self.update()
 
     def step(self, actions):
-        reward = np.zeros(len(self.instance))
         global_reward = 0
-        done = np.zeros(len(self.instance))
         info = np.zeros(2)
         next_state = []
         # 对优先级排序，选前m个执行
         executable = np.argsort(actions)[-self.no_processor:]
-        #print(executable)
+        #if len(actions) > self.no_processor:
+        #    self.instance[executable[0]].execute_time += 1
         for i in range(len(self.instance)):
             instance = self.instance[i]
-            result = instance.step(True if i in executable else False)
+            result = instance.step(True if i in executable and actions[i] > 0.1 else False)
             if result == "miss":
-                #reward[i] -= 1
                 global_reward -= 1
                 instance.over = True
-                done[i] = 1
                 info[1] += 1
             elif result == "finish":
-                #reward[i] += 1
                 info[0] += 1
                 global_reward += 1
                 instance.over = True
-                done[i] = 1
         self.time += 1
         self.arrive()
         self.update()
@@ -111,14 +107,16 @@ class Env(object):
         if len(self.instance) > 0:
             return 0
         for t in self.task_set:
-            if t.count < FREQUENCY - 1:
+            if t.count < FREQUENCY:
                 return 0
         return 1
 
     def observation(self, instance):
         return np.array([instance.execute_time - self.mean_execute, instance.deadline - self.mean_deadline,
                          instance.execute_time - self.max_execute, instance.deadline - self.max_deadline,
-                         instance.execute_time - self.min_execute, instance.deadline - self.min_deadline])
+                         instance.execute_time - self.min_execute, instance.deadline - self.min_deadline,
+                         instance.laxity_time - self.mean_laxity, instance.laxity_time - self.min_laxity,
+                         instance.laxity_time - self.max_laxity])
 
     def save(self):
         self.saved = cp.deepcopy(self.task_set)
@@ -136,3 +134,11 @@ class Env(object):
             if i.over:
                 self.instance.remove(i)
                 del i
+
+    def utilization(self):
+        c = []
+        t = []
+        for task in self.task_set:
+            c.append(task.execute_time)
+            t.append(np.mean(task.interval))
+        return (np.mean(c) / np.mean(t)) * (self.no_task / self.no_processor)

@@ -120,10 +120,7 @@ class DDPG(object):
         mean_qa = tf.stack(mean_qa.tolist())
         mean_qc = tf.stack(mean_qc.tolist())
         mean_q_ = tf.stack(mean_q_.tolist())
-            # bs = np.vstack((bs, bt[i+1][0]))
-            # ba = np.vstack((ba, bt[i+1][1]))
-            # br = np.vstack((br, bt[i+1][2]))
-            # bs_ = np.vstack((bs_, bt[i+1][3]))
+
         # bs = bt[:, :self.s_dim]
         # ba = bt[:, self.s_dim: self.s_dim + self.a_dim]
         # br = bt[:, -self.s_dim - 1: -self.s_dim]

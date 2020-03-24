@@ -6,30 +6,31 @@
 
 GPU = True
 
-device_idx = 0
-state_dim = 6
-action_dim = 1
+DEVICE_INDEX = 0
+STATE_DIM = 9
+ACTION_DIM = 1
 
 MAX_PERIOD = 30
 MIN_PERIOD = 20
 
-MAX_DEADLINE = 180
-MIN_DEADLINE = 100
-GRANULARITY = 1 / 2
+MAX_DEADLINE = 200
+MIN_DEADLINE = 50
+GRANULARITY = 1 / 4
 MAX_EXECUTE_TIME = MAX_DEADLINE
-MIN_EXECUTE_TIME = 5
-LAMBDA = 100
+MIN_EXECUTE_TIME = 10
+LAMBDA = 300
 FREQUENCY = 20
 NO_TASK = 50
-NO_PROCESSOR = 20
+NO_PROCESSOR = 8
+TASK_PER_PROCESSOR = 15
 
 HIDDEN = [32, 16]
-explore_episodes = 0  # for random exploration
+EXPLORATION_EPISODES = 0  # for random exploration
 BATCH_SIZE = 16
-replay_buffer_size = 1e4
-model_path = './model/'
-max_episodes = 100000
-max_steps = 10000
+BUFFER_SIZE = 1e3
+MODEL_PATH = './model/'
+MAX_EPISODES = 100000
+MAX_STEPS = 10000
 
 DEBUG = False
 EDF = True
