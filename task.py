@@ -23,7 +23,6 @@ class Task:
         self.execute_time = round(np.random.exponential((MAX_DEADLINE + MIN_DEADLINE) / 2 * GRANULARITY))
         self.execute_time = np.clip(self.execute_time, MIN_EXECUTE_TIME, self.deadline)
         self.count = 0
-        self.arr = 0
 
     def create_instance(self):
         self.count += 1

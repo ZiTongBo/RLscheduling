@@ -57,7 +57,7 @@ if __name__ == '__main__':
                 # env.arrive()
                 # actions = GlobalLSF(env.instance, env.no_processor)
                 actions = np.zeros(len(env.instance))
-                a = random.sample(range(len(env.instance)), min(env.no_processor,len(env.instance)))
+                a = random.sample(range(len(env.instance)), min(env.no_processor, len(env.instance)))
                 for i in range(len(env.instance)):
                     if i in a:
                         actions[i] = 1
